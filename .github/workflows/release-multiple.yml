@@ -1,4 +1,4 @@
-name: Auto Release + Raw Link Sync
+name: Auto Release with File Details in Description
 
 on:
   push:
@@ -18,8 +18,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # === 生成 index.json，包含文件下载链接与 Raw 直链 ===
-      - name: Generate index.json with download & raw links
+      # === 生成 index.json，并准备 release 描述文本 ===
+      - name: Generate index.json and release body
         run: |
           mkdir -p Lunatv
           REPO="mebaddy/TV"
@@ -27,8 +27,12 @@ jobs:
           BRANCH="main"
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
           RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
+          BODY_FILE="release_body.txt"
 
           echo "[" > Lunatv/index.json
+          echo "### 📦 文件更新清单（自动生成）" > $BODY_FILE
+          echo "" >> $BODY_FILE
+
           first=true
           for f in $(find Lunatv -type f ! -name "index.json"); do
             if [ "$first" = true ]; then
@@ -37,18 +41,34 @@ jobs:
               echo "," >> Lunatv/index.json
             fi
             size=$(stat -c%s "$f")
-            mtime=$(date -u -r "$f" +"%Y-%m-%dT%H:%M:%SZ")
+            mtime=$(date -u -r "$f" +"%Y-%m-%d %H:%M:%S UTC")
             fname=$(basename "$f")
             dlink="${BASE_URL}/${fname}"
             rawlink="${RAW_BASE}/${f}"
+
+            # 生成 JSON 条目
             echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${mtime}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> Lunatv/index.json
+
+            # 写入 release 描述
+            echo "- **${fname}**" >> $BODY_FILE
+            echo "  - 大小：${size} 字节" >> $BODY_FILE
+            echo "  - 更新时间：${mtime}" >> $BODY_FILE
+            echo "  - 📥 [Release 下载链接](${dlink})" >> $BODY_FILE
+            echo "  - 🌐 [Raw 在线访问](${rawlink})" >> $BODY_FILE
+            echo "" >> $BODY_FILE
           done
           echo "]" >> Lunatv/index.json
+
+          echo "" >> $BODY_FILE
+          echo "🧾 自动生成的索引文件：[index.json](${BASE_URL}/index.json)" >> $BODY_FILE
 
       - name: Show generated index.json
         run: cat Lunatv/index.json
 
-      # === 自动提交 index.json 到仓库，使 Raw 链接始终可访问 ===
+      - name: Show release body preview
+        run: cat release_body.txt
+
+      # === 提交 index.json 到仓库，保持 Raw 可访问 ===
       - name: Commit index.json to repository
         run: |
           git config user.name "github-actions[bot]"
@@ -61,19 +81,13 @@ jobs:
             git push origin main
           fi
 
-      # === 发布 Release（附带所有文件） ===
-      - name: Set release variables
-        run: |
-          echo "TAG_NAME=latest-files" >> $GITHUB_ENV
-          echo "RELEASE_NAME=Latest Files Auto Release" >> $GITHUB_ENV
-          echo "BODY=This release includes the latest Lunatv files, plus index.json with both release and raw links." >> $GITHUB_ENV
-
-      - name: Create or update release
+      # === 发布 Release，说明中包含详细文件信息 ===
+      - name: Publish release with details
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: ${{ env.RELEASE_NAME }}
-          body: ${{ env.BODY }}
+          tag_name: latest-files
+          name: "Latest Files Auto Release"
+          body_path: release_body.txt
           files: Lunatv/*
           draft: false
           prerelease: false
