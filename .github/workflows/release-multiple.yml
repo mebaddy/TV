@@ -10,7 +10,7 @@
 #    - branches:
 #        - main          # 只监听 main 分支
 # 3️⃣ 变量说明（需根据目录修改）：
-#    - DIR: 文件夹名称或文件所在文件夹名称，例如 Lunatv、Movies、Configs
+#    - DIR: 文件夹名称，例如 Lunatv、Movies、Configs
 #    - TAG: Release tag，不同目录必须不同，如 latest-lunatv、latest-movies
 #    - Release 名称: name: "${DIR} Auto Release"，可根据需求修改
 # 4️⃣ 功能：
@@ -55,7 +55,7 @@ jobs:
         run: |
           # -------------------------------
           # 👇 以下变量需针对不同目录修改
-          DIR="Lunatv"               # 文件夹名称或文件所在文件夹名称
+          DIR="Lunatv"               # 文件夹名称
           REPO="mebaddy/TV"          # 仓库全名
           TAG="latest-lunatv"        # Release tag（不同目录必须不同）
           BRANCH="main"              # 分支名
