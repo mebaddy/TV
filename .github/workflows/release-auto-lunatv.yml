@@ -3,7 +3,7 @@ name: Auto Release Files (Clean Recreate)
 on:
   push:
     paths:
-      - 'Lunatv/**'   # 监听文件夹路径（这里也可改成变量）
+      - 'MyFiles/**'   # 监听文件夹路径，改 FOLDER 时需同步修改
     branches:
       - main
 
@@ -16,22 +16,26 @@ jobs:
 
     steps:
       # -------------------------------
-      # 0️⃣ 配置变量，方便修改
+      # 0️⃣ 配置变量（方便修改）
       # -------------------------------
       - name: Set environment variables
         run: |
-          echo "REPO=mebaddy/TV" >> $GITHUB_ENV           # 仓库名
-          echo "FOLDER=Lunatv" >> $GITHUB_ENV           # 文件夹名
-          echo "TAG=latest-files" >> $GITHUB_ENV         # Release tag
-          echo "BRANCH=main" >> $GITHUB_ENV              # 分支名
+          # 自动获取仓库名
+          echo "REPO=${GITHUB_REPOSITORY}" >> $GITHUB_ENV
+          # 目标文件夹，修改这里即可
+          echo "FOLDER=MyFiles" >> $GITHUB_ENV
+          # Release tag
+          echo "TAG=latest-files" >> $GITHUB_ENV
+          # 分支名
+          echo "BRANCH=main" >> $GITHUB_ENV
 
       # -------------------------------
-      # 1️⃣ 拉取仓库完整历史
+      # 1️⃣ 拉取完整历史
       # -------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 必须拉取完整历史，否则 git log 无法获取最后提交时间
+          fetch-depth: 0
 
       # -------------------------------
       # 2️⃣ 安装 GitHub CLI
@@ -42,7 +46,7 @@ jobs:
           sudo apt install -y gh
 
       # -------------------------------
-      # 3️⃣ 删除已有 Release 和 tag（如果存在）
+      # 3️⃣ 删除已有 Release 和 tag
       # -------------------------------
       - name: Delete existing release and tag
         env:
