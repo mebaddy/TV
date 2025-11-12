@@ -1,9 +1,9 @@
-name: Auto Release Multiple Files with Download Links
+name: Auto Release + Raw Link Sync
 
 on:
   push:
     paths:
-      - 'Lunatv/**'     # 'Lunatv/**' 监听整个目录变化   'Lunatv/url.json' 监听目录下单个文件变化
+      - 'Lunatv/**'  # 'Lunatv/**' 监听整个目录变化   'Lunatv/url.json' 监听目录下单个文件变化
     branches:
       - main
 
@@ -18,12 +18,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate index.json with download links
+      # === 生成 index.json，包含文件下载链接与 Raw 直链 ===
+      - name: Generate index.json with download & raw links
         run: |
           mkdir -p Lunatv
           REPO="mebaddy/TV"
           TAG="latest-files"
+          BRANCH="main"
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
           echo "[" > Lunatv/index.json
           first=true
@@ -37,18 +40,33 @@ jobs:
             mtime=$(date -u -r "$f" +"%Y-%m-%dT%H:%M:%SZ")
             fname=$(basename "$f")
             dlink="${BASE_URL}/${fname}"
-            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${mtime}\", \"download_url\": \"${dlink}\"}" >> Lunatv/index.json
+            rawlink="${RAW_BASE}/${f}"
+            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${mtime}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> Lunatv/index.json
           done
           echo "]" >> Lunatv/index.json
 
       - name: Show generated index.json
         run: cat Lunatv/index.json
 
+      # === 自动提交 index.json 到仓库，使 Raw 链接始终可访问 ===
+      - name: Commit index.json to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Lunatv/index.json
+          if git diff --cached --quiet; then
+            echo "No changes in index.json, skipping commit."
+          else
+            git commit -m "Auto update index.json [skip ci]"
+            git push origin main
+          fi
+
+      # === 发布 Release（附带所有文件） ===
       - name: Set release variables
         run: |
           echo "TAG_NAME=latest-files" >> $GITHUB_ENV
           echo "RELEASE_NAME=Latest Files Auto Release" >> $GITHUB_ENV
-          echo "BODY=This release includes the latest files under Lunatv folder, plus an automatically generated index.json with download links." >> $GITHUB_ENV
+          echo "BODY=This release includes the latest Lunatv files, plus index.json with both release and raw links." >> $GITHUB_ENV
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
