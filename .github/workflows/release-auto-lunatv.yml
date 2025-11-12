@@ -1,3 +1,5 @@
+# 使用方式：新建文件 .github/workflows/release-auto-.yml，粘贴此代码，按需求修改 “paths” 跟 "FOLDER" 。监听文件有更新时将自动发布 release。
+
 name: Auto Release Files (Clean Recreate)
 
 on:
