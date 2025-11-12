@@ -1,39 +1,24 @@
-# ==============================================
-# GitHub Actions Workflow: 自动发布 Lunatv 文件
-# ==============================================
-#
-# 使用方法：
-# 1️⃣ 文件夹位置：.github/workflows/release-lunatv.yml
-# 2️⃣ 触发条件：
-#    - paths:
-#        - 'Lunatv/**'   # 👈 监听目录，可修改为其他目录，如 'Movies/**'
-#    - branches:
-#        - main          # 只监听 main 分支
-# 3️⃣ 变量说明（需根据目录修改）：
-#    - DIR: 文件夹名称，例如 Lunatv、Movies、Configs
-#    - TAG: Release tag，不同目录必须不同，如 latest-lunatv、latest-movies
-#    - Release 名称: name: "${DIR} Auto Release"，可根据需求修改
-# 4️⃣ 功能：
-#    - 自动生成 index.json，包含每个文件的大小、Git 最后提交时间、Release 下载链接、Raw 链接
-#    - 自动生成 Release body，显示所有文件及详细信息
-#    - 保证文件最后更新时间来源于 Git 提交，而不是 workflow 执行时间
-#    - 自动提交 index.json，保持 Raw 链接可访问
-# 5️⃣ 添加新目录：
-#    - 复制本 workflow 文件
-#    - 修改 paths、DIR、TAG、Release 名称即可
-# ==============================================
-
 name: Auto Release Lunatv Files
 
+# -------------------------------
+# 触发条件
+# -------------------------------
 on:
   push:
     paths:
-      - 'Lunatv/**'   # 👈 修改为对应目录
+      - 'Lunatv/**'   # 仅当 Lunatv 文件夹下的任意文件发生变化时才触发 workflow
     branches:
-      - main
+      - main          # 仅监听 main 分支
+# -------------------------------
+# 注释：
+# paths:
+#   - 'Lunatv/**' 表示 workflow 仅在这个目录下的文件被修改、添加或删除时触发。
+#   - 通配符 "**" 表示包括子目录和所有文件。
+#   - 如果不指定 paths，每次 push 到 main 都会触发，可能导致不必要的发布。
+# -------------------------------
 
 permissions:
-  contents: write
+  contents: write   # 允许 workflow 创建/更新 release
 
 jobs:
   release:
@@ -41,58 +26,55 @@ jobs:
 
     steps:
       # -------------------------------
-      # 1️⃣ 拉取完整 Git 历史
+      # 1️⃣ 拉取仓库完整历史
       # -------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 必须为 0，否则无法获取 Git 历史，更新时间不准确
-
+          fetch-depth: 0   # 必须为 0，否则无法获取完整 git 历史
       # -------------------------------
       # 2️⃣ 生成 index.json 和 Release body
       # -------------------------------
       - name: Generate index.json and release body with Git dates
         run: |
-          # -------------------------------
-          # 👇 以下变量需针对不同目录修改
-          DIR="Lunatv"               # 文件夹名称
-          REPO="mebaddy/TV"          # 仓库全名
-          TAG="latest-lunatv"        # Release tag（不同目录必须不同）
-          BRANCH="main"              # 分支名
+          mkdir -p Lunatv
+          REPO="mebaddy/TV"                # 仓库名
+          TAG="latest-files"                # Release tag
+          BRANCH="main"                     # 分支名
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
           RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
           BODY_FILE="release_body.txt"
-          # -------------------------------
-
-          mkdir -p "$DIR"
 
           # 初始化 index.json 和 release body
-          echo "[" > $DIR/index.json
+          echo "[" > Lunatv/index.json
           echo "### 📦 文件更新清单（自动生成）" > $BODY_FILE
           echo "" >> $BODY_FILE
 
           first=true
-          for f in $(find $DIR -type f ! -name "index.json"); do
+          # 遍历 Lunatv 文件夹下所有文件，排除 index.json
+          for f in $(find Lunatv -type f ! -name "index.json"); do
             if [ "$first" = true ]; then
               first=false
             else
-              echo "," >> $DIR/index.json
+              echo "," >> Lunatv/index.json
             fi
 
             fname=$(basename "$f")
             size=$(stat -c%s "$f")
 
-            # 获取 Git 最后提交时间
+            # 获取最后一次 Git 提交时间
             git_time=$(git log -1 --format="%cI" -- "$f")
+            # 如果没有提交记录，则使用当前时间
             if [ -z "$git_time" ]; then
               git_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             fi
 
+            # 构造 Release 下载链接和 Raw 链接
             dlink="${BASE_URL}/${fname}"
             rawlink="${RAW_BASE}/${f}"
 
             # 写入 index.json
-            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${git_time}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> $DIR/index.json
+            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${git_time}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> Lunatv/index.json
 
             # 写入 Release body
             echo "- **${fname}**" >> $BODY_FILE
@@ -103,24 +85,24 @@ jobs:
             echo "" >> $BODY_FILE
           done
 
-          echo "]" >> $DIR/index.json
+          echo "]" >> Lunatv/index.json
           echo "" >> $BODY_FILE
           echo "🧾 自动生成的索引文件：[index.json](${BASE_URL}/index.json)" >> $BODY_FILE
 
       - name: Show generated index.json
-        run: cat $DIR/index.json
+        run: cat Lunatv/index.json
 
       - name: Show release body preview
         run: cat release_body.txt
 
       # -------------------------------
-      # 3️⃣ 自动提交 index.json
+      # 3️⃣ 自动提交 index.json，保证 Raw 链接可访问
       # -------------------------------
       - name: Commit index.json to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add $DIR/index.json
+          git add Lunatv/index.json
           if git diff --cached --quiet; then
             echo "No changes in index.json, skipping commit."
           else
@@ -129,15 +111,15 @@ jobs:
           fi
 
       # -------------------------------
-      # 4️⃣ 发布或更新 Release
+      # 4️⃣ 发布或更新 Release，说明中包含详细文件信息
       # -------------------------------
       - name: Publish release with details
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: $TAG                  # 👈 目录独立 tag
-          name: "${DIR} Auto Release"     # 👈 Release 名称
+          tag_name: latest-files
+          name: "Latest Files Auto Release"
           body_path: release_body.txt
-          files: $DIR/*
+          files: Lunatv/*
           draft: false
           prerelease: false
         env:
