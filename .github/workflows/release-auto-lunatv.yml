@@ -1,24 +1,14 @@
-name: Auto Release Lunatv Files
+name: Auto Release Lunatv Files (Clean Recreate)
 
-# -------------------------------
-# 触发条件
-# -------------------------------
 on:
   push:
     paths:
-      - 'Lunatv/**'   # 仅当 Lunatv 文件夹下的任意文件发生变化时才触发 workflow
+      - 'Lunatv/**'   # 仅当 Lunatv 文件夹下的文件变动时触发
     branches:
-      - main          # 仅监听 main 分支
-# -------------------------------
-# 注释：
-# paths:
-#   - 'Lunatv/**' 表示 workflow 仅在这个目录下的文件被修改、添加或删除时触发。
-#   - 通配符 "**" 表示包括子目录和所有文件。
-#   - 如果不指定 paths，每次 push 到 main 都会触发，可能导致不必要的发布。
-# -------------------------------
+      - main
 
 permissions:
-  contents: write   # 允许 workflow 创建/更新 release
+  contents: write
 
 jobs:
   release:
@@ -31,27 +21,55 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 必须为 0，否则无法获取完整 git 历史
+          fetch-depth: 0   # 必须为 0，保证 git log 可以获取完整历史
+
       # -------------------------------
-      # 2️⃣ 生成 index.json 和 Release body
+      # 2️⃣ 安装 GitHub CLI，用于删除 Release 和 tag
+      # -------------------------------
+      - name: Install GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install -y gh
+
+      # -------------------------------
+      # 3️⃣ 删除已有 Release 和 tag（如果存在）
+      # -------------------------------
+      - name: Delete existing release and tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="latest-files"
+          # 删除 Release
+          if gh release view $TAG 2>/dev/null; then
+            echo "Deleting existing release $TAG..."
+            gh release delete $TAG --yes
+          fi
+          # 删除 Git tag
+          if git rev-parse $TAG >/dev/null 2>&1; then
+            echo "Deleting local and remote tag $TAG..."
+            git tag -d $TAG
+            git push origin :refs/tags/$TAG
+          fi
+
+      # -------------------------------
+      # 4️⃣ 生成 index.json 和 Release body
       # -------------------------------
       - name: Generate index.json and release body with Git dates
         run: |
           mkdir -p Lunatv
-          REPO="mebaddy/TV"                # 仓库名
-          TAG="latest-files"                # Release tag
-          BRANCH="main"                     # 分支名
+          REPO="mebaddy/TV"
+          TAG="latest-files"
+          BRANCH="main"
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
           RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
           BODY_FILE="release_body.txt"
 
-          # 初始化 index.json 和 release body
+          # 初始化 index.json 和 Release body
           echo "[" > Lunatv/index.json
           echo "### 📦 文件更新清单（自动生成）" > $BODY_FILE
           echo "" >> $BODY_FILE
 
           first=true
-          # 遍历 Lunatv 文件夹下所有文件，排除 index.json
           for f in $(find Lunatv -type f ! -name "index.json"); do
             if [ "$first" = true ]; then
               first=false
@@ -62,14 +80,12 @@ jobs:
             fname=$(basename "$f")
             size=$(stat -c%s "$f")
 
-            # 获取最后一次 Git 提交时间
+            # 获取 Git 最后提交时间
             git_time=$(git log -1 --format="%cI" -- "$f")
-            # 如果没有提交记录，则使用当前时间
             if [ -z "$git_time" ]; then
               git_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             fi
 
-            # 构造 Release 下载链接和 Raw 链接
             dlink="${BASE_URL}/${fname}"
             rawlink="${RAW_BASE}/${f}"
 
@@ -96,7 +112,7 @@ jobs:
         run: cat release_body.txt
 
       # -------------------------------
-      # 3️⃣ 自动提交 index.json，保证 Raw 链接可访问
+      # 5️⃣ 自动提交 index.json，保证 Raw 链接可访问
       # -------------------------------
       - name: Commit index.json to repository
         run: |
@@ -111,9 +127,9 @@ jobs:
           fi
 
       # -------------------------------
-      # 4️⃣ 发布或更新 Release，说明中包含详细文件信息
+      # 6️⃣ 创建新的 Release
       # -------------------------------
-      - name: Publish release with details
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-files
