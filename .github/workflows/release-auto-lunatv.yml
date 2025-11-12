@@ -2,9 +2,9 @@ name: Auto Release Files (Clean Recreate)
 
 on:
   push:
-    # ⚠️ 如果你修改了 "FOLDER"，也请同步修改下面路径
+    # ⚠️ 如果你修改了 "FOLDER"，也请同步修改下面路径，“paths”请勿设置为跟目录。
     paths:
-      - 'Lunatv/**'   # 监听文件夹或文件路径，仅当监听文件夹下的文件变动时触发
+      - 'Lunatv/**'   # 监听文件夹或文件路径，仅当监听文件夹下的文件变动时触发，例：监听目录下所有.yaml文件'Lunatv/*.yaml'，目录下的123.yaml文件'Lunatv/123.yaml'
     branches:
       - main    # 仅监听 main 分支  ⚠️ 如果你修改了 "BRANCH"，也请同步修改
 
