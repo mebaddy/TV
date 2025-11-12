@@ -1,4 +1,4 @@
-name: Auto Release with File Details in Description
+name: Auto Release with Git File Dates
 
 on:
   push:
@@ -18,8 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # === 生成 index.json，并准备 release 描述文本 ===
-      - name: Generate index.json and release body
+      - name: Generate index.json and release body with Git dates
         run: |
           mkdir -p Lunatv
           REPO="mebaddy/TV"
@@ -40,25 +39,32 @@ jobs:
             else
               echo "," >> Lunatv/index.json
             fi
-            size=$(stat -c%s "$f")
-            mtime=$(date -u -r "$f" +"%Y-%m-%d %H:%M:%S UTC")
+
             fname=$(basename "$f")
+            size=$(stat -c%s "$f")
+            
+            # 获取最后一次 Git 提交时间
+            git_time=$(git log -1 --format="%cI" -- "$f")
+            if [ -z "$git_time" ]; then
+              git_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")  # 万一没有提交，使用当前时间
+            fi
+
             dlink="${BASE_URL}/${fname}"
             rawlink="${RAW_BASE}/${f}"
 
-            # 生成 JSON 条目
-            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${mtime}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> Lunatv/index.json
+            # 写入 index.json
+            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${git_time}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> Lunatv/index.json
 
-            # 写入 release 描述
+            # 写入 release body
             echo "- **${fname}**" >> $BODY_FILE
             echo "  - 大小：${size} 字节" >> $BODY_FILE
-            echo "  - 更新时间：${mtime}" >> $BODY_FILE
+            echo "  - 更新时间：${git_time}" >> $BODY_FILE
             echo "  - 📥 [Release 下载链接](${dlink})" >> $BODY_FILE
             echo "  - 🌐 [Raw 在线访问](${rawlink})" >> $BODY_FILE
             echo "" >> $BODY_FILE
           done
-          echo "]" >> Lunatv/index.json
 
+          echo "]" >> Lunatv/index.json
           echo "" >> $BODY_FILE
           echo "🧾 自动生成的索引文件：[index.json](${BASE_URL}/index.json)" >> $BODY_FILE
 
