@@ -1,28 +1,54 @@
-name: Auto Release url.json
+name: Auto Release Multiple Files with Download Links
 
 on:
   push:
     paths:
-      - 'Lunatv/url.json'   # 仅当这个文件变化时触发
+      - 'Lunatv/**'     # 'Lunatv/**' 监听整个目录变化   'Lunatv/url.json' 监听目录下单个文件变化
     branches:
-      - main                # 仅在 main 分支触发
+      - main
 
 permissions:
-  contents: write           # 允许创建/更新 Release
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set variables
-        id: vars
+      - name: Generate index.json with download links
         run: |
-          echo "TAG_NAME=latest-url-json" >> $GITHUB_ENV
-          echo "RELEASE_NAME=Latest url.json Auto Release" >> $GITHUB_ENV
-          echo "BODY=This release contains the latest version of Lunatv/url.json file." >> $GITHUB_ENV
+          mkdir -p Lunatv
+          REPO="mebaddy/TV"
+          TAG="latest-files"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+
+          echo "[" > Lunatv/index.json
+          first=true
+          for f in $(find Lunatv -type f ! -name "index.json"); do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo "," >> Lunatv/index.json
+            fi
+            size=$(stat -c%s "$f")
+            mtime=$(date -u -r "$f" +"%Y-%m-%dT%H:%M:%SZ")
+            fname=$(basename "$f")
+            dlink="${BASE_URL}/${fname}"
+            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${mtime}\", \"download_url\": \"${dlink}\"}" >> Lunatv/index.json
+          done
+          echo "]" >> Lunatv/index.json
+
+      - name: Show generated index.json
+        run: cat Lunatv/index.json
+
+      - name: Set release variables
+        run: |
+          echo "TAG_NAME=latest-files" >> $GITHUB_ENV
+          echo "RELEASE_NAME=Latest Files Auto Release" >> $GITHUB_ENV
+          echo "BODY=This release includes the latest files under Lunatv folder, plus an automatically generated index.json with download links." >> $GITHUB_ENV
 
       - name: Create or update release
         uses: softprops/action-gh-release@v2
@@ -30,7 +56,7 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           name: ${{ env.RELEASE_NAME }}
           body: ${{ env.BODY }}
-          files: Lunatv/url.json
+          files: Lunatv/*
           draft: false
           prerelease: false
         env:
