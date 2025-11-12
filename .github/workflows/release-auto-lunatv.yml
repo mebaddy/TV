@@ -1,9 +1,9 @@
-name: Auto Release Lunatv Files (Clean Recreate)
+name: Auto Release Files (Clean Recreate)
 
 on:
   push:
     paths:
-      - 'Lunatv/**'   # 仅当 Lunatv 文件夹下的文件变动时触发
+      - 'Lunatv/**'   # 监听文件夹路径（这里也可改成变量）
     branches:
       - main
 
@@ -16,15 +16,25 @@ jobs:
 
     steps:
       # -------------------------------
+      # 0️⃣ 配置变量，方便修改
+      # -------------------------------
+      - name: Set environment variables
+        run: |
+          echo "REPO=mebaddy/TV" >> $GITHUB_ENV           # 仓库名
+          echo "FOLDER=Lunatv" >> $GITHUB_ENV           # 文件夹名
+          echo "TAG=latest-files" >> $GITHUB_ENV         # Release tag
+          echo "BRANCH=main" >> $GITHUB_ENV              # 分支名
+
+      # -------------------------------
       # 1️⃣ 拉取仓库完整历史
       # -------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 必须为 0，保证 git log 可以获取完整历史
+          fetch-depth: 0   # 必须拉取完整历史，否则 git log 无法获取最后提交时间
 
       # -------------------------------
-      # 2️⃣ 安装 GitHub CLI，用于删除 Release 和 tag
+      # 2️⃣ 安装 GitHub CLI
       # -------------------------------
       - name: Install GitHub CLI
         run: |
@@ -38,7 +48,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="latest-files"
           # 删除 Release
           if gh release view $TAG 2>/dev/null; then
             echo "Deleting existing release $TAG..."
@@ -56,31 +65,27 @@ jobs:
       # -------------------------------
       - name: Generate index.json and release body with Git dates
         run: |
-          mkdir -p Lunatv
-          REPO="mebaddy/TV"
-          TAG="latest-files"
-          BRANCH="main"
+          mkdir -p $FOLDER
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
           RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
           BODY_FILE="release_body.txt"
 
-          # 初始化 index.json 和 Release body
-          echo "[" > Lunatv/index.json
+          echo "[" > $FOLDER/index.json
           echo "### 📦 文件更新清单（自动生成）" > $BODY_FILE
           echo "" >> $BODY_FILE
 
           first=true
-          for f in $(find Lunatv -type f ! -name "index.json"); do
+          for f in $(find $FOLDER -type f ! -name "index.json"); do
             if [ "$first" = true ]; then
               first=false
             else
-              echo "," >> Lunatv/index.json
+              echo "," >> $FOLDER/index.json
             fi
 
             fname=$(basename "$f")
             size=$(stat -c%s "$f")
 
-            # 获取 Git 最后提交时间
+            # 获取最后提交时间
             git_time=$(git log -1 --format="%cI" -- "$f")
             if [ -z "$git_time" ]; then
               git_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -90,7 +95,7 @@ jobs:
             rawlink="${RAW_BASE}/${f}"
 
             # 写入 index.json
-            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${git_time}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> Lunatv/index.json
+            echo "  {\"name\": \"${fname}\", \"path\": \"${f}\", \"size\": ${size}, \"updated_at\": \"${git_time}\", \"download_url\": \"${dlink}\", \"raw_url\": \"${rawlink}\"}" >> $FOLDER/index.json
 
             # 写入 Release body
             echo "- **${fname}**" >> $BODY_FILE
@@ -101,24 +106,24 @@ jobs:
             echo "" >> $BODY_FILE
           done
 
-          echo "]" >> Lunatv/index.json
+          echo "]" >> $FOLDER/index.json
           echo "" >> $BODY_FILE
           echo "🧾 自动生成的索引文件：[index.json](${BASE_URL}/index.json)" >> $BODY_FILE
 
       - name: Show generated index.json
-        run: cat Lunatv/index.json
+        run: cat $FOLDER/index.json
 
       - name: Show release body preview
         run: cat release_body.txt
 
       # -------------------------------
-      # 5️⃣ 自动提交 index.json，保证 Raw 链接可访问
+      # 5️⃣ 自动提交 index.json
       # -------------------------------
       - name: Commit index.json to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Lunatv/index.json
+          git add $FOLDER/index.json
           if git diff --cached --quiet; then
             echo "No changes in index.json, skipping commit."
           else
@@ -132,10 +137,10 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-files
+          tag_name: ${{ env.TAG }}
           name: "Latest Files Auto Release"
           body_path: release_body.txt
-          files: Lunatv/*
+          files: ${{ env.FOLDER }}/*
           draft: false
           prerelease: false
         env:
