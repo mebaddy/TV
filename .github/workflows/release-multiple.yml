@@ -1,36 +1,38 @@
 # ==============================================
-# GitHub Actions Workflow: 自动发布 Lunatv 文件
+# GitHub Actions Workflow: 自动发布目录文件
 # ==============================================
 #
 # 使用方法：
 # 1️⃣ 文件夹位置：.github/workflows/release-lunatv.yml
-# 2️⃣ 触发条件：
-#    - paths:
-#        - 'Lunatv/**'   # 👈 监听目录，可修改为其他目录，如 'Movies/**'
-#    - branches:
-#        - main          # 只监听 main 分支
-# 3️⃣ 变量说明（需根据目录修改）：
+# 2️⃣ 修改以下变量即可适配不同目录或单文件发布：
+#    - WATCH_PATH: 监听的文件或目录路径，如 'Lunatv/**' 或 'Lunatv/url.json'
 #    - DIR: 文件夹名称或文件所在文件夹名称，例如 Lunatv、Movies、Configs
 #    - TAG: Release tag，不同目录必须不同，如 latest-lunatv、latest-movies
-#    - Release 名称: name: "${DIR} Auto Release"，可根据需求修改
-# 4️⃣ 功能：
-#    - 自动生成 index.json，包含每个文件的大小、Git 最后提交时间、Release 下载链接、Raw 链接
-#    - 自动生成 Release body，显示所有文件及详细信息
-#    - 保证文件最后更新时间来源于 Git 提交，而不是 workflow 执行时间
-#    - 自动提交 index.json，保持 Raw 链接可访问
-# 5️⃣ 添加新目录：
+#    - RELEASE_NAME: Release 页面显示的名称，例如 "Lunatv Auto Release"
+# 3️⃣ 添加新目录：
 #    - 复制本 workflow 文件
-#    - 修改 paths、DIR、TAG、Release 名称即可
+#    - 修改上述变量即可
 # ==============================================
 
-name: Auto Release Lunatv Files
+name: Auto Release Files
+
+# -------------------------------
+# 1️⃣ 统一配置变量
+# -------------------------------
+env:
+  WATCH_PATH: 'Lunatv/**'         # 👈 监听目录或文件路径
+  DIR: 'Lunatv'                   # 👈 文件夹名称或文件所在目录
+  TAG: 'latest-lunatv'            # 👈 Release tag（必须唯一）
+  RELEASE_NAME: 'Lunatv Auto Release'   # 👈 Release 显示名称
+  REPO: 'mebaddy/TV'              # 👈 仓库全名
+  BRANCH: 'main'                  # 👈 分支名
 
 on:
   push:
     paths:
-      - 'Lunatv/**'   # 👈 修改为对应目录
+      - ${{ env.WATCH_PATH }}
     branches:
-      - main
+      - ${{ env.BRANCH }}
 
 permissions:
   contents: write
@@ -41,30 +43,23 @@ jobs:
 
     steps:
       # -------------------------------
-      # 1️⃣ 拉取完整 Git 历史
+      # 2️⃣ 拉取完整 Git 历史
       # -------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # 必须为 0，否则无法获取 Git 历史，更新时间不准确
+          fetch-depth: 0
 
       # -------------------------------
-      # 2️⃣ 生成 index.json 和 Release body
+      # 3️⃣ 生成 index.json 和 Release body
       # -------------------------------
-      - name: Generate index.json and release body with Git dates
+      - name: Generate index.json and release body
         run: |
-          # -------------------------------
-          # 👇 以下变量需针对不同目录修改
-          DIR="Lunatv"               # 文件夹名称或文件所在文件夹名称
-          REPO="mebaddy/TV"          # 仓库全名
-          TAG="latest-lunatv"        # Release tag（不同目录必须不同）
-          BRANCH="main"              # 分支名
+          mkdir -p "${DIR}"
+
           BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
           RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
           BODY_FILE="release_body.txt"
-          # -------------------------------
-
-          mkdir -p "$DIR"
 
           # 初始化 index.json 和 release body
           echo "[" > $DIR/index.json
@@ -114,7 +109,7 @@ jobs:
         run: cat release_body.txt
 
       # -------------------------------
-      # 3️⃣ 自动提交 index.json
+      # 4️⃣ 自动提交 index.json
       # -------------------------------
       - name: Commit index.json to repository
         run: |
@@ -125,17 +120,17 @@ jobs:
             echo "No changes in index.json, skipping commit."
           else
             git commit -m "Auto update index.json [skip ci]"
-            git push origin main
+            git push origin $BRANCH
           fi
 
       # -------------------------------
-      # 4️⃣ 发布或更新 Release
+      # 5️⃣ 发布或更新 Release
       # -------------------------------
       - name: Publish release with details
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: $TAG                  # 👈 目录独立 tag
-          name: "${DIR} Auto Release"     # 👈 Release 名称
+          tag_name: $TAG
+          name: $RELEASE_NAME
           body_path: release_body.txt
           files: $DIR/*
           draft: false
