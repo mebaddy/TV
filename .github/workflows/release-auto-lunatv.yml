@@ -3,7 +3,7 @@ name: Auto Release Files (Clean Recreate)
 on:
   push:
     paths:
-      - 'MyFiles/**'   # 监听文件夹路径，改 FOLDER 时需同步修改
+      - 'Lunatv/**'   # 监听文件夹路径，改 FOLDER 时需同步修改
     branches:
       - main
 
@@ -23,7 +23,7 @@ jobs:
           # 自动获取仓库名
           echo "REPO=${GITHUB_REPOSITORY}" >> $GITHUB_ENV
           # 目标文件夹，修改这里即可
-          echo "FOLDER=MyFiles" >> $GITHUB_ENV
+          echo "FOLDER=Lunatv" >> $GITHUB_ENV
           # Release tag
           echo "TAG=latest-files" >> $GITHUB_ENV
           # 分支名
